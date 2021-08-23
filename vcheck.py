@@ -88,7 +88,7 @@ for i in range(0, sub_tasks):
 
     for j in range(0, task_cnt[i]):
         tot_id += 1
-        exe_path = "./std_{}".format(name)
+        exe_path = "./run_{}".format(name)
         in_path = "{}.{}.{}.in".format(name, i + 1, j + 1)
         out_path = ".output.tmp"
         ans_path = "{}.{}.{}.out".format(name, i + 1, j + 1)
