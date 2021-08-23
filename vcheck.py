@@ -62,7 +62,7 @@ def check_file(file_path: str, err_msg: str):
 
 task_cnt = []
 
-vconf = open("vaccept.conf", "r")
+vconf = open("vtest.conf", "r")
 
 name, sub_tasks = vconf.readline().split()
 sub_tasks = int(sub_tasks)
@@ -83,15 +83,15 @@ ac = 0
 wa = 0
 re = 0
 
-for i in range(0, sub_tasks):
+for i in range(1, sub_tasks + 1):
     print("Start checking subtask #{}".format(i))
 
-    for j in range(0, task_cnt[i]):
+    for j in range(1, task_cnt[i - 1] + 1):
         tot_id += 1
         exe_path = "./run_{}".format(name)
-        in_path = "{}.{}.{}.in".format(name, i + 1, j + 1)
+        in_path = "{}.{}.{}.in".format(name, i, j)
         out_path = ".output.tmp"
-        ans_path = "{}.{}.{}.out".format(name, i + 1, j + 1)
+        ans_path = "{}.{}.{}.out".format(name, i, j)
 
         check_file(exe_path, "[ERR] Executable file {} not found.".format(exe_path))
         check_file(in_path, "[ERR] Input file {} not found.".format(in_path))
@@ -111,8 +111,9 @@ for i in range(0, sub_tasks):
             re += 1
 
         print(
-            "    Case #{}: {} ({}ms) [{}%]".format(
-                tot_id,
+            "    Case #{}.{}: {} ({}ms) [{}%]".format(
+                i,
+                j,
                 res_str,
                 round(elapsed_time * 1000, 2),
                 round((tot_id / tot_tasks) * 100),
@@ -121,9 +122,21 @@ for i in range(0, sub_tasks):
 
 tot_end_time = time.time()
 
-print("\nSummary:")
+print("\nSummary:", end="")
+if wa != 0:
+    print(" WA", end="")
+if re != 0:
+    print(" RE", end="")
+if wa == 0 and re == 0:
+    print(" AC", end="")
+
+print()
 print("    Total time: {}ms".format(round((tot_end_time - tot_start_time) * 1000, 2)))
-print("    Slowest case: #{}.{} ({}ms)".format(max_case[0] + 1, max_case[1] + 1, round(max_time * 1000, 2)))
+print(
+    "    Slowest case: #{}.{} ({}ms)".format(
+        max_case[0], max_case[1], round(max_time * 1000, 2)
+    )
+)
 print("--------------------------------")
 print("    AC: {} [{}%]".format(ac, ac * 100 // tot_tasks))
 print("    WA: {} [{}%]".format(wa, wa * 100 // tot_tasks))
