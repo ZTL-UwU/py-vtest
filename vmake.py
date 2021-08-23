@@ -88,15 +88,18 @@ for i in range(1, sub_tasks + 1):
                 max_case = (i, j)
 
             print(
-                "    Made case #{}.{}: ({}ms) [{}%]".format(
+                "    [{}%] Made case #{}.{}: ({}ms)".format(
+                    round((tot_id / tot_tasks) * 100),
                     i,
                     j,
                     round(std_time * 1000, 2),
-                    round((tot_id / tot_tasks) * 100),
                 )
             )
 
 tot_end_time = time.time()
+
+if os.path.exists(".input.tmp"):
+    os.remove(".input.tmp")
 
 print("\nSummary:")
 print("    Total time: {}ms".format(round((tot_end_time - tot_start_time) * 1000, 2)))
@@ -107,4 +110,8 @@ print(
 )
 
 if err_cnt != 0:
-    print("****[ERR] {} times. [{}%]".format(err_cnt, (err_cnt * 100 // tot_tasks)))
+    print(
+        "****[ERR] {} errors occurred. [{}%]".format(
+            err_cnt, (err_cnt * 100 // tot_tasks)
+        )
+    )

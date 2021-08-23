@@ -111,16 +111,19 @@ for i in range(1, sub_tasks + 1):
             re += 1
 
         print(
-            "    Case #{}.{}: {} ({}ms) [{}%]".format(
+            "    [{}%] Case #{}.{}: {} ({}ms)".format(
+                round((tot_id / tot_tasks) * 100),
                 i,
                 j,
                 res_str,
                 round(elapsed_time * 1000, 2),
-                round((tot_id / tot_tasks) * 100),
             )
         )
 
 tot_end_time = time.time()
+
+if os.path.exists(".output.tmp"):
+    os.remove(".output.tmp")
 
 print("\nSummary:", end="")
 if wa != 0:
