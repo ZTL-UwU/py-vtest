@@ -106,7 +106,6 @@ if os.path.exists("{}/.input.tmp".format(folder)):
     os.remove("{}/.input.tmp".format(folder))
 
 print("\nSummary:")
-print("    Total time: {}ms".format(round((tot_end_time - tot_start_time) * 1000, 2)))
 print(
     "    Slowest case: #{}.{} ({}ms)".format(
         max_case[0], max_case[1], round(max_time * 1000, 2)

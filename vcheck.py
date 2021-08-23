@@ -87,6 +87,8 @@ ac = 0
 wa = 0
 re = 0
 
+tot_time = 0
+
 for i in range(1, sub_tasks + 1):
     print("Start checking subtask #{}".format(i))
 
@@ -104,6 +106,7 @@ for i in range(1, sub_tasks + 1):
         if elapsed_time > max_time:
             max_time = elapsed_time
             max_case = (i, j)
+        tot_time += elapsed_time
 
         res_str, res_code = check_res(code, out_path, ans_path)
 
@@ -138,7 +141,7 @@ if wa == 0 and re == 0:
     print(" AC", end="")
 
 print()
-print("    Total time: {}ms".format(round((tot_end_time - tot_start_time) * 1000, 2)))
+print("    Total time: {}ms".format(round(tot_time * 1000, 2)))
 print(
     "    Slowest case: #{}.{} ({}ms)".format(
         max_case[0], max_case[1], round(max_time * 1000, 2)
