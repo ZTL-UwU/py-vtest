@@ -65,6 +65,10 @@ task_cnt = []
 vconf = open("vtest.conf", "r")
 
 name, sub_tasks = vconf.readline().split()
+folder = vconf.readline().strip()
+if (not os.path.exists(folder)):
+    os.makedirs(folder)
+
 sub_tasks = int(sub_tasks)
 tot_tasks = 0
 
@@ -89,9 +93,9 @@ for i in range(1, sub_tasks + 1):
     for j in range(1, task_cnt[i - 1] + 1):
         tot_id += 1
         exe_path = "./run_{}".format(name)
-        in_path = "{}.{}.{}.in".format(name, i, j)
-        out_path = ".output.tmp"
-        ans_path = "{}.{}.{}.out".format(name, i, j)
+        in_path = "{}/{}.{}.{}.in".format(folder, name, i, j)
+        out_path = "{}/.output.tmp".format(folder)
+        ans_path = "{}/{}.{}.{}.out".format(folder, name, i, j)
 
         check_file(exe_path, "[ERR] Executable file {} not found.".format(exe_path))
         check_file(in_path, "[ERR] Input file {} not found.".format(in_path))
@@ -122,8 +126,8 @@ for i in range(1, sub_tasks + 1):
 
 tot_end_time = time.time()
 
-if os.path.exists(".output.tmp"):
-    os.remove(".output.tmp")
+if os.path.exists("{}/.output.tmp".format(folder)):
+    os.remove("{}/.output.tmp".format(folder))
 
 print("\nSummary:", end="")
 if wa != 0:
