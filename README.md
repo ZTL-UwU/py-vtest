@@ -51,18 +51,18 @@ A Maker is an executable that generates the input of a single test case.
 
     ```plaintext
     .
-    |- <data path> // Auto Generated
-    |  |- <name>.1.1.in
-    |  |- <name>.1.1.out
-    |  |- ...
-    |  |- <name>.<subtask count>.<n>.in
-    |  |- <name>.<subtask count>.<n>.out
-    |
-    |- mk_<name>  // Compile yourself
-    |- std_<name> // Compile yourself
-    |- run_<name> // Compile yourself
-    |- vmake.py   // Downloaded
-    |- vcheck.py  // Downloaded
+    ├─ <data path> // Auto Generated
+    │  ├─ <name>.1.1.in
+    │  ├─ <name>.1.1.out
+    │  ├─ ...
+    │  ├─ <name>.<subtask count>.<n>.in
+    │  └─ <name>.<subtask count>.<n>.out
+    │
+    ├─ mk_<name>  // Compile yourself
+    ├─ std_<name> // Compile yourself
+    ├─ run_<name> // Compile yourself
+    ├─ vmake.py   // Downloaded
+    └─ vcheck.py  // Downloaded
     ```
 
 ## Example
@@ -166,12 +166,12 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
     
     ```
     .
-    |- data
-    |  |- AplusB.1.1.in
-    |  |- AplusB.1.1.out
-    |  |- ...
-    |  |- AplusB.2.4.in
-    |  |- AplusB.2.4.out
+    ├─ data
+    |  ├─ AplusB.1.1.in
+    |  ├─ AplusB.1.1.out
+    |  ├─ ...
+    |  ├─ AplusB.2.4.in
+    |  └─ AplusB.2.4.out
     ```
 
 7. Lets try another solution without using `long long` (who cannot pass the test).
