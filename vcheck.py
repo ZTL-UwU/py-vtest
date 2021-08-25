@@ -69,6 +69,9 @@ folder = vconf.readline().strip()
 if (not os.path.exists(folder)):
     os.makedirs(folder)
 
+print("Start Checking solution for {}.".format(name))
+print()
+
 sub_tasks = int(sub_tasks)
 tot_tasks = 0
 
@@ -118,7 +121,7 @@ for i in range(1, sub_tasks + 1):
             re += 1
 
         print(
-            "    [{}%] Case #{}.{}: {} ({}ms)".format(
+            "    [{:>3}%] Case #{}.{}: {:^14} ({}ms)".format(
                 round((tot_id / tot_tasks) * 100),
                 i,
                 j,
@@ -141,13 +144,13 @@ if wa == 0 and re == 0:
     print(" AC", end="")
 
 print()
-print("    Total time: {}ms".format(round(tot_time * 1000, 2)))
+print("    Total time:   {}ms".format(round(tot_time * 1000, 2)))
 print(
     "    Slowest case: #{}.{} ({}ms)".format(
         max_case[0], max_case[1], round(max_time * 1000, 2)
     )
 )
 print("--------------------------------")
-print("    AC: {} [{}%]".format(ac, ac * 100 // tot_tasks))
-print("    WA: {} [{}%]".format(wa, wa * 100 // tot_tasks))
-print("    RE: {} [{}%]".format(re, re * 100 // tot_tasks))
+print("    AC: {:>3} [{:>3}%]".format(ac, ac * 100 // tot_tasks))
+print("    WA: {:>3} [{:>3}%]".format(wa, wa * 100 // tot_tasks))
+print("    RE: {:>3} [{:>3}%]".format(re, re * 100 // tot_tasks))

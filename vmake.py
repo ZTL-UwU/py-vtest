@@ -33,6 +33,9 @@ folder = vconf.readline().strip()
 if (not os.path.exists(folder)):
     os.makedirs(folder)
 
+print("Start Making data for {}.".format(name))
+print()
+
 sub_tasks = int(sub_tasks)
 tot_tasks = 0
 
@@ -92,7 +95,7 @@ for i in range(1, sub_tasks + 1):
                 max_case = (i, j)
 
             print(
-                "    [{}%] Made case #{}.{}: ({}ms)".format(
+                "    [{:>3}%] Made case #{}.{}: ({}ms)".format(
                     round((tot_id / tot_tasks) * 100),
                     i,
                     j,
