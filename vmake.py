@@ -26,6 +26,7 @@ def check_file(file_path: str, err_msg: str):
 
 task_cnt = []
 
+check_file("vtest.conf", "[ERR] Configure file 'vtest.conf' not found.")
 vconf = open("vtest.conf", "r")
 
 name, sub_tasks = vconf.readline().split()
