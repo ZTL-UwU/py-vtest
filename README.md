@@ -145,17 +145,19 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
     The program outputs like this:
 
     ```plaintext
+    Start Making data for AplusB.
+
     Making subtask #1
-        [10%] Made case #1.1: (9.0ms)
-        [20%] Made case #1.2: (2.17ms)
-        [30%] Made case #1.3: (5.08ms)
-        [40%] Made case #1.4: (2.53ms)
-        [50%] Made case #1.5: (4.01ms)
-        [60%] Made case #1.6: (3.81ms)
+        [ 10%] Made case #1.1: (9.0ms)
+        [ 20%] Made case #1.2: (2.17ms)
+        [ 30%] Made case #1.3: (5.08ms)
+        [ 40%] Made case #1.4: (2.53ms)
+        [ 50%] Made case #1.5: (4.01ms)
+        [ 60%] Made case #1.6: (3.81ms)
     Making subtask #2
-        [70%] Made case #2.1: (1.99ms)
-        [80%] Made case #2.2: (3.06ms)
-        [90%] Made case #2.3: (2.04ms)
+        [ 70%] Made case #2.1: (1.99ms)
+        [ 80%] Made case #2.2: (3.06ms)
+        [ 90%] Made case #2.3: (2.04ms)
         [100%] Made case #2.4: (3.4ms)
 
     Summary:
@@ -202,23 +204,23 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
 
     ```plaintext
     Start checking subtask #1
-        [10%] Case #1.1: Answer Correct (2.56ms)
-        [20%] Case #1.2: Answer Correct (2.33ms)
-        [30%] Case #1.3: Answer Correct (2.6ms)
-        [40%] Case #1.4: Answer Correct (7.18ms)
-        [50%] Case #1.5: Answer Correct (2.22ms)
-        [60%] Case #1.6: Answer Correct (2.24ms)
+        [ 10%] Case #1.1: Answer Correct (2.56ms)
+        [ 20%] Case #1.2: Answer Correct (2.33ms)
+        [ 30%] Case #1.3: Answer Correct (2.6ms)
+        [ 40%] Case #1.4: Answer Correct (7.18ms)
+        [ 50%] Case #1.5: Answer Correct (2.22ms)
+        [ 60%] Case #1.6: Answer Correct (2.24ms)
     Start checking subtask #2
-        [70%] Case #2.1: Wrong Answer (3.17ms)
-        [80%] Case #2.2: Wrong Answer (2.85ms)
-        [90%] Case #2.3: Wrong Answer (2.28ms)
-        [100%] Case #2.4: Wrong Answer (2.76ms)
+        [ 70%] Case #2.1:  Wrong Answer  (3.17ms)
+        [ 80%] Case #2.2:  Wrong Answer  (2.85ms)
+        [ 90%] Case #2.3:  Wrong Answer  (2.28ms)
+        [100%] Case #2.4:  Wrong Answer  (2.76ms)
 
     Summary: WA
         Total time: 30.2ms
         Slowest case: #1.4 (7.18ms)
     --------------------------------
-        AC: 6 [60%]
-        WA: 4 [40%]
-        RE: 0 [0%]
+        AC:   6 [ 60%]
+        WA:   4 [ 40%]
+        RE:   0 [  0%]
     ```
