@@ -18,29 +18,24 @@ def run(name: str, in_path, out_path):
 
 
 def cmp_file(file_path1, file_path2):
-    file1 = open(file_path1, mode="r")
-    file2 = open(file_path2, mode="r")
+    with open(file_path1, mode="r") as file1:
+        with open(file_path2, mode="r") as file2:
+            while True:
+                a = file1.readline()
+                b = file2.readline()
+                
+                if (len(a) == 0 and len(b) != 0) or (len(a) == 0 and len(b) != 0):
+                    return False
+                
+                if len(a) == 0 and len(b) == 0:
+                    break
+                
+                a = a.split()
+                b = b.split()
+                if a != b:
+                    return False
 
-    in_1 = "#"
-    in_2 = "#"
-    while not len(in_1) == 0 and not len(in_1) == 0:
-        in_1 = file1.readline()
-        in_2 = file2.readline()
-
-        while len(in_1.split()) == 0 and not len(in_1) == 0:
-            in_1 = file1.readline()
-
-        while len(in_2.split()) == 0 and not len(in_2) == 0:
-            in_2 = file2.readline()
-
-        if in_1.split() != in_2.split():
-            file1.close()
-            file2.close()
-            return False
-
-    file1.close()
-    file2.close()
-    return True
+            return True
 
 
 def check_res(code, in_path, ans_path):
@@ -70,7 +65,7 @@ folder = vconf.readline().strip()
 if (not os.path.exists(folder)):
     os.makedirs(folder)
 
-print("Start Checking solution for {}.".format(name))
+print("Start CHECKING solution for {}.".format(name))
 print()
 
 sub_tasks = int(sub_tasks)
