@@ -58,8 +58,12 @@ for i in range(1, sub_tasks + 1):
 
     for j in range(1, task_cnt[i - 1] + 1):
         tot_id += 1
-        mk_path = "./mk_{}".format(name)
-        std_path = "./std_{}".format(name)
+	if platform.system() == "Windows":
+            mk_path = "./mk_{}.exe".format(name)
+            std_path = "./std_{}.exe".format(name)
+	else:
+            mk_path = "./mk_{}".format(name)
+            std_path = "./std_{}".format(name)
         in_path = "{}/.input.tmp".format(folder)
         out_path = "{}/{}.{}.{}.in".format(folder, name, i, j)
         ans_path = "{}/{}.{}.{}.out".format(folder, name, i, j)
@@ -68,7 +72,7 @@ for i in range(1, sub_tasks + 1):
         check_file(std_path, "[ERR] Executable file {} not found.".format(std_path))
 
         input_tmp = open(in_path, "w")
-        input_tmp.write(str(i))
+        input_tmp.write(str(i) + " " + str(j))
         input_tmp.close()
 
         mk_time, mk_code = run(mk_path, in_path, out_path)
