@@ -5,3 +5,8 @@
 # Test
 test*
 test/
+
+# Executables & Builds
+*.exe
+*.pch
+*.o
