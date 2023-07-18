@@ -232,7 +232,7 @@ struct limitor {
 	limitor(const limitor<Gen> &g) = default;
 
 	bool is_terminated() const noexcept {
-		return lim <= 0;
+		return lim <= 0 || g.is_terminated();
 	}
 
 	auto operator()() {
@@ -361,10 +361,14 @@ inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type>
 
 namespace rng {
 
+inline auto make_seed() {
+	// NOTE: MinGW GCC older than 9.2 have a fixed random_device
+	return std::random_device{}();
+}
+
 template<typename Engine = std::default_random_engine>
 inline auto common() {
-	// NOTE: MinGW GCC older than 9.2 have a fixed random_device
-	return make_generator<Engine>(std::random_device{}());
+	return make_generator<Engine>(make_seed());
 }
 
 template<typename Engine, typename Seed>
@@ -398,6 +402,13 @@ inline auto cstyle(int seed) {
 	std::srand(seed);
 	std::rand();
 	return details::cstyle_rng();
+}
+
+template<typename Tval = int, typename Engine = std::default_random_engine>
+inline auto uniform_ints(Tval l, Tval r) {
+	return generate([rng = Engine(), dis = std::uniform_int_distribution<Tval>(l, r)]() mutable {
+		return dis(rng);
+	});
 }
 
 }
