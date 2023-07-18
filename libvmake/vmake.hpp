@@ -7,21 +7,106 @@
 namespace vmake {
 
 struct sequence_terminated_error : std::exception {
-	// TODO
+	virtual const char *what() const noexcept override final {
+		return "iterating on a terminated sequence.";
+	}
 };
 
 namespace details {
 
+template<typename T>
+struct iota_sequence {
+	using result = T;
+
+	T start;
+	iota_sequence(const T& start) : start(start) {}
+
+	bool is_terminated() const noexcept {
+		return false;
+	}
+
+	auto operator()() {
+		return start++;
+	}
+};
+
+template<typename T>
+struct ranged_sequence {
+	using result = T;
+
+	T start, end;
+	ranged_sequence(const T& start, const T& end) : start(start), end(end) {}
+
+	bool is_terminated() const noexcept {
+		return start == end;
+	}
+
+	auto operator()() {
+		if (start == end) throw sequence_terminated_error();
+		return start++;
+	}
+};
+
+template<typename T>
+struct ranged_step_sequence {
+	using result = T;
+
+	T start, end, step;
+	ranged_step_sequence(const T& start, const T& end, const T& step) : start(start), end(end), step(step) {}
+
+	bool is_terminated() const noexcept {
+		return start == end;
+	}
+
+	auto operator()() {
+		if (start == end) throw sequence_terminated_error();
+		T res = start;
+		start += step;
+		return res;
+	}
+};
+
+} // namespace details
+
+template<typename Val>
+inline auto iota(const Val &start) {
+	return details::iota_sequence<Val>(start);
+}
+
+template<typename Val>
+inline auto range(const Val &start, const Val &end) {
+	return details::ranged_sequence<Val>(start, end);
+}
+
+template<typename Val>
+inline auto range(const Val &start, const Val &end, const Val &step) {
+	return details::ranged_step_sequence<Val>(start, end, step);
+}
+
+namespace details {
+
+template<typename T>
+struct empty_sequence {
+	using result = T;
+
+	bool is_terminated() const noexcept {
+		return true;
+	}
+
+	T operator()() {
+		throw sequence_terminated_error();
+	}
+};
+
 template<typename ContIt>
 struct extractor {
-	using core = ContIt;
 	using result = typename std::remove_reference<decltype(*std::declval<ContIt>())>::type;
 
 	ContIt cur, end;
 
 	extractor(const ContIt &begin, const ContIt &end) : cur(begin), end(end) {}
 
-	bool is_terminated() const {
+	bool is_terminated() const noexcept {
 		return cur == end;
 	}
 
@@ -33,7 +118,6 @@ struct extractor {
 
 template<typename Func>
 struct generator {
-	using core = Func;
 	using result = typename std::result_of<Func()>::type;
 
 	Func g;
@@ -46,7 +130,7 @@ struct generator {
 	generator(generator<Func> &&y) = default;
 	generator(const generator<Func> &y) = default;
 
-	bool is_terminated() const {
+	bool is_terminated() const noexcept {
 		return false;
 	}
 
@@ -66,7 +150,7 @@ struct limitor {
 	limitor(limitor<Gen> &&g) = default;
 	limitor(const limitor<Gen> &g) = default;
 
-	bool is_terminated() const {
+	bool is_terminated() const noexcept {
 		return lim <= 0;
 	}
 
@@ -76,6 +160,11 @@ struct limitor {
 	}
 };
 
+}
+
+template<typename T>
+inline auto nothing() {
+	return details::empty_sequence<T>();
 }
 
 template<typename Gen>
@@ -90,7 +179,7 @@ inline auto make_generator(Args ...args) {
 
 namespace rng {
 
-template<typename Engine>
+template<typename Engine = std::default_random_engine>
 inline auto common() {
 	// NOTE: MinGW GCC older than 9.2 have a fixed random_device
 	return make_generator<Engine>(std::random_device{}());
@@ -101,10 +190,12 @@ inline auto common(Seed seed) {
 	return make_generator<Engine>(seed);
 }
 
-struct cstyle_rng {
-	using result = int;
+namespace details {
 
-	bool is_terminated() const {
+struct cstyle_rng {
+	using result = decltype(std::rand());
+
+	bool is_terminated() const noexcept {
 		return false;
 	}
 
@@ -113,16 +204,18 @@ struct cstyle_rng {
 	}
 };
 
+}
+
 inline auto cstyle() {
 	std::srand(time(0));
 	std::rand();
-	return cstyle_rng();
+	return details::cstyle_rng();
 }
 
 inline auto cstyle(int seed) {
 	std::srand(seed);
 	std::rand();
-	return cstyle_rng();
+	return details::cstyle_rng();
 }
 
 }
@@ -162,7 +255,7 @@ struct concator {
 	concator(const concator<Gen1, Gen2> &c) = default;
 //	concator<Gen1, Gen2>& operator=(concator<Gen1, Gen2> &&c) = default;
 
-	bool is_terminated() const {
+	bool is_terminated() const noexcept {
 		return g1.is_terminated() && g2.is_terminated();
 	}
 
@@ -173,7 +266,7 @@ struct concator {
 };
 
 template<typename Gen1, typename Gen2>
-inline auto concat(Gen1 &&x, Gen2 &&y) {
+inline constexpr auto concat(Gen1 &&x, Gen2 &&y) noexcept {
 	return concator<Gen1, Gen2>(std::move(x), std::move(y));
 }
 
@@ -190,7 +283,7 @@ struct transformer {
 	transformer(const transformer<Gen, Func> &c) = default;
 //	transformer& operator=(transformer<Gen, Func> &&c) = default;
 
-	bool is_terminated() const {
+	bool is_terminated() const noexcept {
 		return g.is_terminated();
 	}
 
@@ -211,7 +304,7 @@ inline auto output(OutputStream& out, const char *delim, Gen &&g) {
 
 template<typename OutputStream, typename Gen>
 inline auto output(OutputStream& out, Gen &&g) {
-	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), g);
+	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), std::move(g));
 }
 
 template<typename OutputStream, typename Gen>
@@ -225,8 +318,8 @@ inline auto output_n(OutputStream& out, size_t n, Gen &&g) {
 }
 
 template<typename Func>
-inline auto generate(Func &&f) {
-	return details::generator<Func>(std::move(f));
+inline constexpr auto generate(Func &&f) {
+	return details::generator<Func>(std::forward<Func>(f));
 }
 
 namespace polyfill {
@@ -237,7 +330,7 @@ struct as_const_reference_t {
 };
 
 template<typename T>
-inline auto as_const_reference(typename as_const_reference_t<T>::type x) {
+inline constexpr auto as_const_reference(typename as_const_reference_t<T>::type x) noexcept {
 	return x;
 }
 
@@ -254,30 +347,35 @@ struct filteror {
 	filteror(filteror<Gen, Pred> &&) = default;
 	filteror(const filteror<Gen, Pred> &) = default;
 
-	Gen g;
+	mutable Gen g;
 	Pred p;
-	polyfill::optional<result> preview;
+	mutable polyfill::optional<result> preview;
 
 	filteror(Gen &&g, Pred &&p) : g(std::forward<Gen>(g)), p(std::forward<Pred>(p)), preview() {
 		_find_next();
 	};
 
-	bool is_terminated() const {
-		return g.is_terminated() && !preview.has_value();
+	bool is_terminated() const noexcept {
+		if (g.is_terminated() && !preview.has_value()) return true;
+		if (!preview.has_value()) _find_next();
+		return !preview.has_value();
 	}
 
 	auto operator()() {
 		if (is_terminated()) throw sequence_terminated_error();
 		result res = std::move(*preview);
-		_find_next();
+		preview.reset();
 		return res;
 	}
 
 private:
-	void _find_next() {
+	void _find_next() const {
 		preview.reset();
 		do {
-			if (g.is_terminated()) return;
+			if (g.is_terminated()) {
+				preview.reset();
+				return;
+			}
 			preview.emplace(std::move(g()));
 		} while (!p(polyfill::as_const_reference<result>(*preview)));
 	}
