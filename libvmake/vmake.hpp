@@ -436,24 +436,58 @@ inline OutputIt copy_n(OutputIt it, size_t n, Gen&& g) {
 	return it;
 }
 
-template<typename OutputStream, typename Gen>
-inline auto output(OutputStream& out, const char *delim, Gen &&g) {
+template<typename CharT, typename Traits, typename Gen>
+inline auto output(std::basic_ostream<CharT, Traits>& out, const char *delim, Gen &&g) {
 	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), std::move(g));
 }
 
-template<typename OutputStream, typename Gen>
-inline auto output(OutputStream& out, Gen &&g) {
+template<typename CharT, typename Traits, typename Gen>
+inline auto output(std::basic_ostream<CharT, Traits>& out, Gen &&g) {
 	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), std::move(g));
 }
 
-template<typename OutputStream, typename Gen>
-inline auto output_n(OutputStream& out, size_t n, const char *delim, Gen &&g) {
+template<typename CharT, typename Traits, typename Gen>
+inline auto output_n(std::basic_ostream<CharT, Traits>& out, size_t n, const char *delim, Gen &&g) {
 	return copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), n, std::move(g));
 }
 
-template<typename OutputStream, typename Gen>
-inline auto output_n(OutputStream& out, size_t n, Gen &&g) {
+template<typename CharT, typename Traits, typename Gen>
+inline auto output_n(std::basic_ostream<CharT, Traits>& out, size_t n, Gen &&g) {
 	return copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), n, std::move(g));
+}
+
+template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln(std::basic_ostream<CharT, Traits>& out, const char *delim, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), std::move(g));
+	out << endl;
+	return res;
+}
+
+template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln(std::basic_ostream<CharT, Traits>& out, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), std::move(g));
+	out << endl;
+	return res;
+}
+
+template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln_n(std::basic_ostream<CharT, Traits>& out, size_t n
+	, const char *delim, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), n, std::move(g));
+	out << endl;
+	return res;
+}
+
+template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln_n(std::basic_ostream<CharT, Traits>& out, size_t n, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), n, std::move(g));
+	out << endl;
+	return res;
+}
+
+template<typename CharT, typename Traits, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline void outputln(std::basic_ostream<CharT, Traits>& out, const Endl &endl = std::endl<CharT, Traits>) {
+	out << endl;
 }
 
 }
