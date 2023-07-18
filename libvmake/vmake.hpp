@@ -411,6 +411,13 @@ inline auto uniform_ints(Tval l, Tval r) {
 	});
 }
 
+template<typename Tval = double, typename Engine = std::default_random_engine>
+inline auto uniform_reals(Tval l, Tval r) {
+	return generate([rng = Engine(), dis = std::uniform_real_distribution<Tval>(l, r)]() mutable {
+		return dis(rng);
+	});
+}
+
 }
 
 template<typename OutputIt, typename Gen>
