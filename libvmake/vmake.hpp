@@ -99,12 +99,12 @@ struct empty_sequence {
 };
 
 template<typename ContIt>
-struct extractor {
+struct ranged_iterator_extractor {
 	using result = typename std::remove_reference<decltype(*std::declval<ContIt>())>::type;
 
 	ContIt cur, end;
 
-	extractor(const ContIt &begin, const ContIt &end) : cur(begin), end(end) {}
+	ranged_iterator_extractor(const ContIt &begin, const ContIt &end) : cur(begin), end(end) {}
 
 	bool is_terminated() const noexcept {
 		return cur == end;
@@ -115,6 +115,47 @@ struct extractor {
 		return *cur++;
 	}
 };
+
+template<typename ContIt>
+struct iterator_extractor {
+	using result = typename std::remove_reference<decltype(*std::declval<ContIt>())>::type;
+
+	ContIt it;
+	bool added;
+
+	iterator_extractor(const ContIt &begin) : it(begin), added(false) {};
+
+	constexpr bool is_terminated() const noexcept {
+		return false;
+	}
+
+	auto operator()() {
+		// WARN: use for strange iterators such as std::istream_iterator
+		// do NOT try to optimize this into *it++
+		if (added) return *++it;
+		added = true;
+		return *it;
+	}
+};
+
+} // namespace details
+
+template<typename ContIt>
+inline auto extract(const ContIt &begin, const ContIt &end) {
+	return details::ranged_iterator_extractor<ContIt>(begin, end);
+}
+
+template<typename ContIt>
+inline auto extract(const ContIt &begin) {
+	return details::iterator_extractor<ContIt>(begin);
+}
+
+template<typename ContIt>
+inline auto extract_n(const ContIt &begin, size_t n) {
+	return take(details::iterator_extractor<ContIt>(begin), n);
+}
+
+namespace details {
 
 template<typename Func>
 struct generator {
@@ -236,11 +277,6 @@ inline OutputIt copy_n(OutputIt it, size_t n, Gen&& g) {
 	return it;
 }
 
-template<typename ContIt>
-inline auto extract(const ContIt &begin, const ContIt &end) {
-	return details::extractor<ContIt>(begin, end);
-}
-
 template<typename Gen1, typename Gen2>
 struct concator {
 	using result = typename Gen1::result;
@@ -308,7 +344,7 @@ inline auto output(OutputStream& out, Gen &&g) {
 }
 
 template<typename OutputStream, typename Gen>
-inline auto output_n(OutputStream& out, const char *delim, size_t n, Gen &&g) {
+inline auto output_n(OutputStream& out, size_t n, const char *delim, Gen &&g) {
 	return copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), n, std::move(g));
 }
 
