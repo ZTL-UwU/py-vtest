@@ -2,7 +2,10 @@
 #define _VTEST_VMAKE_HPP
 
 #include <bits/stdc++.h>
+
+#if __cplusplus < 201703L
 #include "optional.hpp"
+#endif
 
 namespace vmake {
 
@@ -25,7 +28,11 @@ inline constexpr auto as_const_reference(typename as_const_reference_t<T>::type 
 }
 
 template<typename T>
+#if __cplusplus >= 201703L
+using optional = std::optional<T>;
+#else
 using optional = nonstd::optional<T>;
+#endif
 
 } // namespace polyfill
 
@@ -363,7 +370,11 @@ namespace rng {
 
 inline auto make_seed() {
 	// NOTE: MinGW GCC older than 9.2 have a fixed random_device
+#if defined(__GNUC__) && defined(_WIN32) && __GNUC__ * 100 + __GNUC_MINOR__ <= 902
+	return std::chrono::steady_clock::now().time_since_epoch().count();
+#else
 	return std::random_device{}();
+#endif
 }
 
 template<typename Engine = std::default_random_engine>
@@ -406,14 +417,14 @@ inline auto cstyle(int seed) {
 
 template<typename Tval = int, typename Engine = std::default_random_engine>
 inline auto uniform_ints(Tval l, Tval r) {
-	return generate([rng = Engine(), dis = std::uniform_int_distribution<Tval>(l, r)]() mutable {
+	return generate([rng = Engine(make_seed()), dis = std::uniform_int_distribution<Tval>(l, r)]() mutable {
 		return dis(rng);
 	});
 }
 
 template<typename Tval = double, typename Engine = std::default_random_engine>
 inline auto uniform_reals(Tval l, Tval r) {
-	return generate([rng = Engine(), dis = std::uniform_real_distribution<Tval>(l, r)]() mutable {
+	return generate([rng = Engine(make_seed()), dis = std::uniform_real_distribution<Tval>(l, r)]() mutable {
 		return dis(rng);
 	});
 }
