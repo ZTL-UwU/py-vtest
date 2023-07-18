@@ -12,6 +12,23 @@ struct sequence_terminated_error : std::exception {
 	}
 };
 
+namespace polyfill {
+
+template<typename T>
+struct as_const_reference_t {
+	using type = const typename std::remove_reference<T>::type&;
+};
+
+template<typename T>
+inline constexpr auto as_const_reference(typename as_const_reference_t<T>::type x) noexcept {
+	return x;
+}
+
+template<typename T>
+using optional = nonstd::optional<T>;
+
+} // namespace polyfill
+
 namespace details {
 
 template<typename T>
@@ -98,6 +115,15 @@ struct empty_sequence {
 	}
 };
 
+} // namespace details
+
+template<typename T>
+inline auto nothing() {
+	return details::empty_sequence<T>();
+}
+
+namespace details {
+
 template<typename ContIt>
 struct ranged_iterator_extractor {
 	using result = typename std::remove_reference<decltype(*std::declval<ContIt>())>::type;
@@ -180,6 +206,20 @@ struct generator {
 	}
 };
 
+} // namespace details
+
+template<typename Func, typename... Args>
+inline auto make_generator(Args ...args) {
+	return details::generator<Func>(std::move(Func(args...)));
+}
+
+template<typename Func>
+inline constexpr auto generate(Func &&f) {
+	return details::generator<Func>(std::forward<Func>(f));
+}
+
+namespace details {
+
 template<typename Gen>
 struct limitor {
 	using core = Gen;
@@ -201,21 +241,122 @@ struct limitor {
 	}
 };
 
-}
-
-template<typename T>
-inline auto nothing() {
-	return details::empty_sequence<T>();
-}
+} // namespace details
 
 template<typename Gen>
 inline auto take(Gen &&g, size_t lim) {
 	return details::limitor<typename std::decay<decltype(g)>::type>(std::move(g), lim);
 };
 
-template<typename Func, typename... Args>
-inline auto make_generator(Args ...args) {
-	return details::generator<Func>(std::move(Func(args...)));
+namespace details {
+
+template<typename Gen1, typename Gen2>
+struct concator {
+	using result = typename Gen1::result;
+	using core = Gen1;
+	using core2 = Gen2;
+
+	Gen1 g1;
+	Gen2 g2;
+
+	concator(Gen1 &&g1, Gen2 &&g2) : g1(std::move(g1)), g2(std::move(g2)) {}
+	concator(concator<Gen1, Gen2> &&c) = default;
+	concator(const concator<Gen1, Gen2> &c) = default;
+//	concator<Gen1, Gen2>& operator=(concator<Gen1, Gen2> &&c) = default;
+
+	bool is_terminated() const noexcept {
+		return g1.is_terminated() && g2.is_terminated();
+	}
+
+	auto operator()() {
+		if (g1.is_terminated()) return g2();
+		return g1();
+	}
+};
+
+} // namespace details
+
+template<typename Gen1, typename Gen2>
+inline constexpr auto concat(Gen1 &&x, Gen2 &&y) noexcept {
+	return details::concator<Gen1, Gen2>(std::move(x), std::move(y));
+}
+
+namespace details {
+
+template<typename Gen, typename Func>
+struct transformer {
+	using result = typename std::result_of<Func(typename Gen::result)>::type;
+	using core = Gen;
+
+	Gen g;
+	Func f;
+
+	transformer(Gen &&g, Func &&gf) : g(std::move(g)), f(std::move(f)) {}
+	transformer(transformer<Gen, Func> &&c) = default;
+	transformer(const transformer<Gen, Func> &c) = default;
+//	transformer& operator=(transformer<Gen, Func> &&c) = default;
+
+	bool is_terminated() const noexcept {
+		return g.is_terminated();
+	}
+
+	auto operator()() {
+		return f(g());
+	}
+};
+
+} // namespace details
+
+template<typename Gen, typename Func>
+inline auto transform(Gen &&g, Func &&f) {
+	return details::transformer<Gen, Func>(std::move(g), std::move(f));
+}
+
+template<typename Gen, typename Pred>
+struct filteror {
+	using result = typename Gen::result;
+	using core = Gen;
+
+	filteror(filteror<Gen, Pred> &&) = default;
+	filteror(const filteror<Gen, Pred> &) = default;
+
+	mutable Gen g;
+	Pred p;
+	mutable polyfill::optional<result> preview;
+
+	filteror(Gen &&g, Pred &&p) : g(std::forward<Gen>(g)), p(std::forward<Pred>(p)), preview() {
+		_find_next();
+	};
+
+	bool is_terminated() const noexcept {
+		if (g.is_terminated() && !preview.has_value()) return true;
+		if (!preview.has_value()) _find_next();
+		return !preview.has_value();
+	}
+
+	auto operator()() {
+		if (is_terminated()) throw sequence_terminated_error();
+		result res = std::move(*preview);
+		preview.reset();
+		return res;
+	}
+
+private:
+	void _find_next() const {
+		preview.reset();
+		do {
+			if (g.is_terminated()) {
+				preview.reset();
+				return;
+			}
+			preview.emplace(std::move(g()));
+		} while (!p(polyfill::as_const_reference<result>(*preview)));
+	}
+};
+
+template<typename Gen, typename Pred>
+inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type> filter(Gen &&g, Pred &&p) {
+	return {std::forward<Gen>(g), std::forward<Pred>(p)};
 }
 
 namespace rng {
@@ -277,62 +418,6 @@ inline OutputIt copy_n(OutputIt it, size_t n, Gen&& g) {
 	return it;
 }
 
-template<typename Gen1, typename Gen2>
-struct concator {
-	using result = typename Gen1::result;
-	using core = Gen1;
-	using core2 = Gen2;
-
-	Gen1 g1;
-	Gen2 g2;
-
-	concator(Gen1 &&g1, Gen2 &&g2) : g1(std::move(g1)), g2(std::move(g2)) {}
-	concator(concator<Gen1, Gen2> &&c) = default;
-	concator(const concator<Gen1, Gen2> &c) = default;
-//	concator<Gen1, Gen2>& operator=(concator<Gen1, Gen2> &&c) = default;
-
-	bool is_terminated() const noexcept {
-		return g1.is_terminated() && g2.is_terminated();
-	}
-
-	auto operator()() {
-		if (g1.is_terminated()) return g2();
-		return g1();
-	}
-};
-
-template<typename Gen1, typename Gen2>
-inline constexpr auto concat(Gen1 &&x, Gen2 &&y) noexcept {
-	return concator<Gen1, Gen2>(std::move(x), std::move(y));
-}
-
-template<typename Gen, typename Func>
-struct transformer {
-	using result = typename std::result_of<Func(typename Gen::result)>::type;
-	using core = Gen;
-
-	Gen g;
-	Func f;
-
-	transformer(Gen &&g, Func &&gf) : g(std::move(g)), f(std::move(f)) {}
-	transformer(transformer<Gen, Func> &&c) = default;
-	transformer(const transformer<Gen, Func> &c) = default;
-//	transformer& operator=(transformer<Gen, Func> &&c) = default;
-
-	bool is_terminated() const noexcept {
-		return g.is_terminated();
-	}
-
-	auto operator()() {
-		return f(g());
-	}
-};
-
-template<typename Gen, typename Func>
-inline auto transform(Gen &&g, Func &&f) {
-	return transformer<Gen, Func>(std::move(g), std::move(f));
-}
-
 template<typename OutputStream, typename Gen>
 inline auto output(OutputStream& out, const char *delim, Gen &&g) {
 	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), std::move(g));
@@ -351,75 +436,6 @@ inline auto output_n(OutputStream& out, size_t n, const char *delim, Gen &&g) {
 template<typename OutputStream, typename Gen>
 inline auto output_n(OutputStream& out, size_t n, Gen &&g) {
 	return copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), n, std::move(g));
-}
-
-template<typename Func>
-inline constexpr auto generate(Func &&f) {
-	return details::generator<Func>(std::forward<Func>(f));
-}
-
-namespace polyfill {
-
-template<typename T>
-struct as_const_reference_t {
-	using type = const typename std::remove_reference<T>::type&;
-};
-
-template<typename T>
-inline constexpr auto as_const_reference(typename as_const_reference_t<T>::type x) noexcept {
-	return x;
-}
-
-template<typename T>
-using optional = nonstd::optional<T>;
-
-}
-
-template<typename Gen, typename Pred>
-struct filteror {
-	using result = typename Gen::result;
-	using core = Gen;
-
-	filteror(filteror<Gen, Pred> &&) = default;
-	filteror(const filteror<Gen, Pred> &) = default;
-
-	mutable Gen g;
-	Pred p;
-	mutable polyfill::optional<result> preview;
-
-	filteror(Gen &&g, Pred &&p) : g(std::forward<Gen>(g)), p(std::forward<Pred>(p)), preview() {
-		_find_next();
-	};
-
-	bool is_terminated() const noexcept {
-		if (g.is_terminated() && !preview.has_value()) return true;
-		if (!preview.has_value()) _find_next();
-		return !preview.has_value();
-	}
-
-	auto operator()() {
-		if (is_terminated()) throw sequence_terminated_error();
-		result res = std::move(*preview);
-		preview.reset();
-		return res;
-	}
-
-private:
-	void _find_next() const {
-		preview.reset();
-		do {
-			if (g.is_terminated()) {
-				preview.reset();
-				return;
-			}
-			preview.emplace(std::move(g()));
-		} while (!p(polyfill::as_const_reference<result>(*preview)));
-	}
-};
-
-template<typename Gen, typename Pred>
-inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type> filter(Gen &&g, Pred &&p) {
-	return {std::forward<Gen>(g), std::forward<Pred>(p)};
 }
 
 }
