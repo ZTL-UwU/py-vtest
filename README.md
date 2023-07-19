@@ -1,14 +1,14 @@
 # py-Vtest
 
-![[LICENSE](https://github.com/zhangtianli2006/py-vtest/blob/main/LICENSE)](https://img.shields.io/github/license/zhangtianli2006/py-vtest?style=flat-square)
-![Code Size](https://img.shields.io/github/languages/code-size/zhangtianli2006/py-vtest?style=flat-square)
+![[LICENSE](https://github.com/ZTL-UwU/py-vtest/blob/main/LICENSE)](https://img.shields.io/github/license/ZTL-UwU/py-vtest?style=flat-square)
+![Code Size](https://img.shields.io/github/languages/code-size/ZTL-UwU/py-vtest?style=flat-square)
 
 An OI test-data maker & std test tool.
 
 ## Mode
 
-1. **vmake**: Automatically generate test-data with user-provided std and Maker (described below).
-2. **vcheck**: Judge a solution like a OnlineJudge does.  
+1. **vmake**: Automatically generate test-data with user-provided standard solution and Maker (described below).
+2. **vcheck**: Execute a solution on set of test-data like an OnlineJudge does.
 **WARNING: No sandbox protection, don't run any untrusted code!**
 
 ## Maker
@@ -69,7 +69,7 @@ A Maker is an executable that generates the input of a single test case.
 
 Here is a example of generating test-data of the _A + B problem_ and testing a solution of it.
 
-1. Make an empty folder.
+1. Create an empty folder.
 2. Create `vtest.conf` with the following content:
 
     ```plaintext
@@ -81,22 +81,22 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
 
 3. Download `vmake.py` and `vcheck.py`.
 
-    You can use these commands if you are a command-line user:
+    You can use the following commands if you prefer CLI or simply click `Download Zip` in the project repository page and extract `vmake.py` and `vcheck.py`:
 
     ```bash
-    wget https://github.com/zhangtianli2006/py-vtest/raw/main/vmake.py
-    wget https://github.com/zhangtianli2006/py-vtest/raw/main/vcheck.py
+    wget https://github.com/ZTL-UwU/py-vtest/raw/main/vmake.py
+    wget https://github.com/ZTL-UwU/py-vtest/raw/main/vcheck.py
     ```
 
-4. Create an executable named `std_AplusB`.
+4. Create a standard solutoion as an executable named `std_AplusB`.
 
-    For example, here is a C++ version of it, just compile it:
+    For example, the following code is a C++ version of a standard solution of _A + B problem_, compile it into `std_AplusB`:
 
     ```cpp
+    // std_AplusB.cpp
     #include <iostream>
 
-    int main()
-    {
+    int main() {
         long long a, b;
         std::cin >> a >> b;
         std::cout << a + b;
@@ -104,28 +104,33 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
     }
     ```
 
+    Compile commands:
+
+    ```bash
+    g++ std_AplusB.cpp -o std_AplusB
+    ```
+
 5. Create an executable named `mk_AplusB` which is a Maker (described above).
 
-    For example, here is a C++ version of it, just compile it:
+    For example, the following is a C++ version of the test-data Maker, compile it into `mk_AplusB`:
 
     ```cpp
+    // mk_AplusB.cpp
     #include <iostream>
     #include <random>
 
-    int main()
-    {
+    int main() {
         int subtask_id;
         std::cin >> subtask_id;
 
-        if (subtask_id == 1) 
-        {
+        if (subtask_id == 1) {
             std::mt19937 rng(std::random_device{}());
             std::cout << rng() << " " << rng();
         }
 
-        if (subtask_id == 2)
-        {
-            // In this subtask, we will try to hack solutions without using long long
+        if (subtask_id == 2) {
+            // In this subtask, we will generate larger inputs
+	    // which can hack solutions without using long long.
             std::mt19937_64 rng(std::random_device{}());
             std::cout << rng() << " " << rng();
         }
@@ -134,15 +139,21 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
     }
     ```
 
+    Compile commands:
+
+    ```bash
+    g++ mk_AplusB.cpp -o mk_AplusB
+    ```
+
 6. Run `vmake.py`.
 
-    You can use these commands if you are a command-line user:
+    You can use the following command or simply double-click on `vmake.py`:
 
     ```bash
     python3 vmake.py
     ```
 
-    The program outputs like this:
+    The output is similar to the following:
 
     ```plaintext
     Start Making data for AplusB.
@@ -178,13 +189,13 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
 
 7. Lets try another solution without using `long long` (who cannot pass the test).
 
-    This is a C++ version of it, just compile it to `run_AplusB`:
+    This is a C++ version of a wrong solution, compile it into `run_AplusB`:
 
     ```cpp
+    // AplusB_wrong.cpp
     #include <iostream>
 
-    int main()
-    {
+    int main() {
         int a, b;
         std::cin >> a >> b;
         std::cout << a + b;
@@ -192,15 +203,21 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
     }
     ```
 
+    Compile commands:
+
+    ```bash
+    g++ AplusB_wrong.cpp -o run_AplusB
+    ```
+
 8. Run `vcheck.py`
 
-    You can use these commands if you are a command-line user:
+    You can use the following command or simply double-click on `vcheck.py`:
 
     ```bash
     python3 vcheck.py
     ```
 
-    The program may outputs like this:
+    The output is similar to the following:
 
     ```plaintext
     Start checking subtask #1
@@ -224,3 +241,15 @@ Here is a example of generating test-data of the _A + B problem_ and testing a s
         WA:   4 [ 40%]
         RE:   0 [  0%]
     ```
+
+## Todo
+
+1. Add `.exe` suffix on Windows in `vcheck.py` and `vhack.py`. (see #2)
+1. Introduce `vhack.py` in README.
+1. Add a `zh-cn` version of the README introduction.
+1. Extract shared codes in `vmake.py`, `vhack.py` and `vcheck.py`.
+1. Auto generate subtask configuration files for HustOJ, LibraOJ, HydroOJ and more (maybe `vconf.py` ?).
+1. Use command-line arguments rather that fixed `std_xxx`, `mk_xxx` stuff.
+1. Check inputs with a codeforces styled validator (maybe `vvalidate.py` ?).
+1. Write an introduction and documention about libvmake.
+
