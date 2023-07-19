@@ -9,6 +9,8 @@
 
 namespace vmake {
 
+using std::size_t;
+
 struct require_unique_t {} require_unique;
 
 struct sequence_terminated_error : std::exception {
@@ -19,20 +21,20 @@ struct sequence_terminated_error : std::exception {
 
 namespace polyfill {
 
-template<typename T>
-struct as_const_reference_t {
-	using type = const typename std::remove_reference<T>::type&;
-};
-
-template<typename T>
-inline constexpr auto as_const_reference(typename as_const_reference_t<T>::type x) noexcept {
-	return x;
-}
 
 #if __cplusplus >= 201703L
+
 using std::optional;
+using std::as_const;
+
 #else
+
 using nonstd::optional;
+
+template<typename T> struct add_const_t { using type = const T; };
+template<typename T> constexpr typename add_const_t<T>::type& as_const(T& t) noexcept { return t; }
+template<typename T> void as_const(const T&&) = delete;
+
 #endif
 
 } // namespace polyfill
@@ -201,7 +203,7 @@ namespace details {
 
 template<typename Func>
 struct generator {
-	using result = typename std::result_of<Func()>::type;
+	using result = decltype(std::declval<Func>()());
 
 	Func g;
 
@@ -332,7 +334,7 @@ namespace details {
 
 template<typename Gen, typename Func>
 struct transformer {
-	using result = typename std::result_of<Func(typename Gen::result)>::type;
+	using result = decltype(std::declval<Func>()(std::declval<typename Gen::result>()));
 	using core = Gen;
 
 	Gen g;
@@ -397,7 +399,7 @@ private:
 				return;
 			}
 			preview.emplace(std::move(g()));
-		} while (!p(polyfill::as_const_reference<result>(*preview)));
+		} while (!p(polyfill::as_const<result>(*preview)));
 	}
 };
 
@@ -408,40 +410,30 @@ inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type>
 
 namespace details {
 
-template<typename ...Ts>
-using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
+//template<typename ...Ts>
+//using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
+
+template<typename Tp, int n, size_t ...index>
+auto repeat_tuple_builder(std::index_sequence<index...> seq)
+	-> std::tuple<typename std::enable_if<(void(index), true), Tp>::type...>;
 
 template<typename Tp, int n>
-struct repeat_tuple {
-	static_assert(n > 0, "");
-	using type = tuple_cat_t<std::tuple<Tp>, typename repeat_tuple<Tp, n - 1>::type>;
+struct repeat_tuple_t {
+	using type = decltype(repeat_tuple_builder<Tp, n>(std::make_index_sequence<n>()));
 };
 
-template<typename Tp>
-struct repeat_tuple<Tp, 1> {
-	using type = std::tuple<Tp>;
-};
-
-template<typename Gen, int n>
-struct group_helper {
-	static auto load(Gen &g) {
-		auto x = g();
-		auto y = group_helper<Gen, n - 1>::load(g);
-		return std::tuple_cat(std::make_tuple<typename Gen::result>(std::move(x)), std::move(y));
-	}
-};
-
-template<typename Gen>
-struct group_helper<Gen, 1> {
-	static auto load(Gen &g) {
-		return std::make_tuple<typename Gen::result>(g());
-	}
-};
+template<typename Gen, size_t ...index>
+inline auto group_builder(Gen &g, std::index_sequence<index...> seq) {
+	auto val = std::array<typename Gen::result, seq.size()>{
+		(void(index), g())...
+	};
+	return std::make_tuple(std::move(val[index])...);
+}
 
 template<typename Gen, int n>
 struct grouper {
 	static_assert(n > 0, "");
-	using result = typename repeat_tuple<typename Gen::result, n>::type;
+	using result = typename repeat_tuple_t<typename Gen::result, n>::type;
 	using core = Gen;
 
 	Gen g;
@@ -455,7 +447,7 @@ struct grouper {
 	}
 
 	result operator()() {
-		return group_helper<Gen, n>::load(g);
+		return group_builder<Gen>(g, std::make_index_sequence<n>());
 	}
 };
 
