@@ -517,6 +517,68 @@ inline auto uniform_ints(Tval &&l, Tval &&r) {
 	});
 }
 
+struct require_unique_t {} require_unique;
+
+namespace details {
+
+template<typename Tval, typename Engine>
+struct unique_ints_sequence {
+	using result = Tval;
+
+	unique_ints_sequence(unique_ints_sequence<Tval, Engine> &&) = default;
+	unique_ints_sequence(const unique_ints_sequence<Tval, Engine> &) = default;
+
+	Tval l, r;
+	Engine rng;
+	std::uniform_int_distribution<Tval> dis;
+	std::unordered_set<Tval> used;
+	std::vector<int> rest;
+	bool halfed;
+
+	unique_ints_sequence(Engine &&e, Tval &&l, Tval &&r) : l(l), r(r), rng(std::forward<Engine>(e))
+		, dis(std::forward<Tval>(l), std::forward<Tval>(r)), used(), rest(), halfed(false) {}
+
+	bool is_terminated() const noexcept {
+		return halfed && rest.empty();
+	}
+
+	auto operator()() {
+		if (!halfed && (used.size() + 1) * 2 >= static_cast<_unsigned_Tval>(r - l + 1)) {
+			for (Tval i = l; i <= r; ++i) {
+				if (!used.count(i)) rest.push_back(i);
+			}
+			std::shuffle(rest.begin(), rest.end(), rng);
+			halfed = true;
+		}
+
+		if (halfed) {
+			if (rest.empty()) throw sequence_terminated_error();
+			auto res = std::move(rest.back());
+			rest.pop_back();
+			return res;
+		}
+
+		while (true) {
+			auto res = dis(rng);
+			if (used.count(res)) continue;
+			used.insert(res);
+			return res;
+		}
+	}
+
+private:
+	using _unsigned_Tval = typename std::conditional<std::is_integral<Tval>::value
+		, typename std::make_unsigned<Tval>::type, Tval>::type;
+};
+
+};
+
+template<typename Tval = int, typename Engine = std::default_random_engine>
+inline auto uniform_ints(require_unique_t _, Tval &&l, Tval &&r) {
+	return details::unique_ints_sequence<typename std::decay<Tval>::type, Engine>(Engine(make_seed())
+		, std::forward<Tval>(l), std::forward<Tval>(r));
+}
+
 template<typename Tval = double, typename Engine = std::default_random_engine>
 inline auto uniform_reals(Tval &&l, Tval &&r) {
 	return generate([rng = Engine(make_seed())
