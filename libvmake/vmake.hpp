@@ -93,18 +93,20 @@ struct ranged_step_sequence {
 } // namespace details
 
 template<typename Val>
-inline auto iota(const Val &start) {
-	return details::iota_sequence<Val>(start);
+inline auto iota(Val &&start) {
+	return details::iota_sequence<typename std::decay<Val>::type>(std::forward<Val>(start));
 }
 
 template<typename Val>
-inline auto range(const Val &start, const Val &end) {
-	return details::ranged_sequence<Val>(start, end);
+inline auto range(Val &&start, Val &&end) {
+	return details::ranged_sequence<typename std::decay<Val>::type>(std::forward<Val>(start)
+		, std::forward<Val>(end));
 }
 
 template<typename Val>
-inline auto range(const Val &start, const Val &end, const Val &step) {
-	return details::ranged_step_sequence<Val>(start, end, step);
+inline auto range(Val &&start, Val &&end, Val &&step) {
+	return details::ranged_step_sequence<typename std::decay<Val>::type>(std::forward<Val>(start)
+		, std::forward<Val>(end), std::forward<Val>(step));
 }
 
 namespace details {
@@ -216,13 +218,13 @@ struct generator {
 } // namespace details
 
 template<typename Func, typename... Args>
-inline auto make_generator(Args ...args) {
-	return details::generator<Func>(std::move(Func(args...)));
+inline auto make_generator(Args&&... args) {
+	return details::generator<Func>(std::move(Func(std::forward<Args>(args)...)));
 }
 
 template<typename Func>
 inline constexpr auto generate(Func &&f) {
-	return details::generator<Func>(std::forward<Func>(f));
+	return details::generator<typename std::decay<Func>::type>(std::forward<Func>(f));
 }
 
 namespace details {
@@ -252,8 +254,40 @@ struct limitor {
 
 template<typename Gen>
 inline auto take(Gen &&g, size_t lim) {
-	return details::limitor<typename std::decay<decltype(g)>::type>(std::move(g), lim);
+	return details::limitor<typename std::decay<decltype(g)>::type>(std::forward<Gen>(g), lim);
 };
+
+namespace details {
+
+template<typename Tval>
+struct repeater {
+	using result = Tval;
+
+	Tval x;
+	repeater(Tval &&x) : x(std::forward<Tval>(x)) {};
+	repeater(const repeater<Tval>&) = default;
+	repeater(repeater<Tval> &&) = default;
+
+	constexpr bool is_terminated() const noexcept {
+		return false;
+	}
+
+	Tval operator()() const {
+		return x;
+	}
+};
+
+} // namespace details
+
+template<typename Tval>
+inline auto repeat(Tval &&x) {
+	return details::repeater<typename std::decay<Tval>::type>(std::forward<Tval>(x));
+}
+
+template<typename Tval>
+inline auto repeat_n(Tval &&x, size_t n) {
+	return take(repeat(std::forward<Tval>(x)), n);
+}
 
 namespace details {
 
@@ -285,7 +319,8 @@ struct concator {
 
 template<typename Gen1, typename Gen2>
 inline constexpr auto concat(Gen1 &&x, Gen2 &&y) noexcept {
-	return details::concator<Gen1, Gen2>(std::move(x), std::move(y));
+	return details::concator<typename std::decay<Gen1>::type
+				, typename std::decay<Gen2>::type>(std::forward<Gen1>(x), std::forward<Gen2>(y));
 }
 
 namespace details {
@@ -301,7 +336,6 @@ struct transformer {
 	transformer(Gen &&g, Func &&gf) : g(std::move(g)), f(std::move(f)) {}
 	transformer(transformer<Gen, Func> &&c) = default;
 	transformer(const transformer<Gen, Func> &c) = default;
-//	transformer& operator=(transformer<Gen, Func> &&c) = default;
 
 	bool is_terminated() const noexcept {
 		return g.is_terminated();
@@ -316,7 +350,8 @@ struct transformer {
 
 template<typename Gen, typename Func>
 inline auto transform(Gen &&g, Func &&f) {
-	return details::transformer<Gen, Func>(std::move(g), std::move(f));
+	return details::transformer<typename std::decay<Gen>::type
+				  , typename std::decay<Func>::type>(std::forward<Gen>(g), std::forward<Func>(f));
 }
 
 template<typename Gen, typename Pred>
@@ -409,22 +444,26 @@ inline auto cstyle() {
 	return details::cstyle_rng();
 }
 
-inline auto cstyle(int seed) {
+inline auto cstyle(unsigned seed) {
 	std::srand(seed);
 	std::rand();
 	return details::cstyle_rng();
 }
 
 template<typename Tval = int, typename Engine = std::default_random_engine>
-inline auto uniform_ints(Tval l, Tval r) {
-	return generate([rng = Engine(make_seed()), dis = std::uniform_int_distribution<Tval>(l, r)]() mutable {
+inline auto uniform_ints(Tval &&l, Tval &&r) {
+	return generate([rng = Engine(make_seed())
+		, dis = std::uniform_int_distribution<typename std::decay<Tval>::type>(
+			std::forward<Tval>(l), std::forward<Tval>(r))]() mutable {
 		return dis(rng);
 	});
 }
 
 template<typename Tval = double, typename Engine = std::default_random_engine>
-inline auto uniform_reals(Tval l, Tval r) {
-	return generate([rng = Engine(make_seed()), dis = std::uniform_real_distribution<Tval>(l, r)]() mutable {
+inline auto uniform_reals(Tval &&l, Tval &&r) {
+	return generate([rng = Engine(make_seed())
+		, dis = std::uniform_real_distribution<typename std::decay<Tval>::type>(
+			std::forward<Tval>(l), std::forward<Tval>(r))]() mutable {
 		return dis(rng);
 	});
 }
