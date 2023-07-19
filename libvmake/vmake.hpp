@@ -401,6 +401,64 @@ inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type>
 	return {std::forward<Gen>(g), std::forward<Pred>(p)};
 }
 
+namespace details {
+
+template<typename Tp, int n>
+struct repeat_tuple {
+	static_assert(n > 0, "");
+	using type = decltype(std::tuple_cat(std::declval<std::tuple<Tp>>()
+		, std::declval<typename repeat_tuple<Tp, n - 1>::type>()));
+};
+
+template<typename Tp>
+struct repeat_tuple<Tp, 1> {
+	using type = std::tuple<Tp>;
+};
+
+template<typename Gen, int n>
+struct group_helper {
+	static auto load(Gen &g) {
+		auto x = g();
+		auto y = group_helper<Gen, n - 1>::load(g);
+		return std::tuple_cat(std::make_tuple<typename Gen::result>(std::move(x)), std::move(y));
+	}
+};
+
+template<typename Gen>
+struct group_helper<Gen, 1> {
+	static auto load(Gen &g) {
+		return std::make_tuple<typename Gen::result>(g());
+	}
+};
+
+template<typename Gen, int n>
+struct grouper {
+	static_assert(n > 0, "");
+	using result = typename repeat_tuple<typename Gen::result, n>::type;
+	using core = Gen;
+
+	Gen g;
+
+	grouper(grouper<Gen, n>&& g) = default;
+	grouper(const grouper<Gen, n>& g) = default;
+	grouper(Gen &&g) : g(std::forward<Gen>(g)) {}
+
+	bool is_terminated() noexcept {
+		return g.is_terminated();
+	}
+
+	result operator()() {
+		return group_helper<Gen, n>::load(g);
+	}
+};
+
+}
+
+template<int n, typename Gen>
+inline auto group(Gen &&g) {
+	return details::grouper<typename std::decay<Gen>::type, n>(std::forward<Gen>(g));
+}
+
 namespace rng {
 
 inline auto make_seed() {
