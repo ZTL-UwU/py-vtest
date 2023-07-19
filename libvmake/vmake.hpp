@@ -319,36 +319,51 @@ inline auto repeat_n(Tval &&x, size_t n) {
 
 namespace details {
 
-template<typename Gen1, typename Gen2>
+template<typename T, size_t ...index>
+inline bool concat_terminate_helper(T &g, std::index_sequence<index...> seq) {
+	bool res = true;
+	void(std::array<int, seq.size()>{
+		(!res || std::get<index>(g).is_terminated() || (res = false))...
+	});
+	return res;
+}
+
+template<typename Res, typename T, size_t ...index>
+inline Res concat_call_helper(T &g, std::index_sequence<index...> seq) {
+	polyfill::optional<Res> x;
+	void(std::array<int, seq.size()>{
+		(x.has_value() || std::get<index>(g).is_terminated()
+		|| (x.emplace(std::move(std::get<index>(g)()))))...
+	});
+	if (!x.has_value()) throw sequence_terminated_error();
+	return *x;
+}
+
+template<typename Gen1, typename ...Gen>
 struct concator {
 	using result = typename Gen1::result;
-	using core = Gen1;
-	using core2 = Gen2;
+	using core = std::tuple<Gen1, Gen...>;
 
-	Gen1 g1;
-	Gen2 g2;
+	core g;
 
-	concator(Gen1 &&g1, Gen2 &&g2) : g1(std::move(g1)), g2(std::move(g2)) {}
-	concator(concator<Gen1, Gen2> &&c) = default;
-	concator(const concator<Gen1, Gen2> &c) = default;
-//	concator<Gen1, Gen2>& operator=(concator<Gen1, Gen2> &&c) = default;
+	concator(Gen1&& g1, Gen&&... g2) : g(std::forward<Gen1>(g1), std::forward<Gen>(g2)...) {}
+	concator(concator<Gen1, Gen...>&&) = default;
+	concator(const concator<Gen1, Gen...>&) = default;
 
 	bool is_terminated() const noexcept {
-		return g1.is_terminated() && g2.is_terminated();
+		return concat_terminate_helper(g, std::make_index_sequence<sizeof...(Gen) + 1>());
 	}
 
 	auto operator()() {
-		if (g1.is_terminated()) return g2();
-		return g1();
+		return concat_call_helper<result>(g, std::make_index_sequence<sizeof...(Gen) + 1>());
 	}
 };
 
 } // namespace details
 
-template<typename Gen1, typename Gen2>
-inline constexpr auto concat(Gen1 &&x, Gen2 &&y) noexcept {
-	return details::concator<typename std::decay<Gen1>::type
-				, typename std::decay<Gen2>::type>(std::forward<Gen1>(x), std::forward<Gen2>(y));
+template<typename ...Gen>
+inline constexpr auto concat(Gen&&... g) noexcept {
+	return details::concator<typename std::decay<Gen>::type...>(std::forward<Gen>(g)...);
 }
 
 namespace details {
@@ -685,6 +700,8 @@ using empty_sequence_int = decltype(nothing<int>());
 static_assert(is_sequence_t<empty_sequence_int>::value, "");
 static_assert(is_sequence_t<decltype(take(empty_sequence_int{}, 1))>::value, "");
 static_assert(is_sequence_t<decltype(group<20>(empty_sequence_int{}))>::value, "");
+static_assert(is_sequence_t<decltype(concat(empty_sequence_int{}
+	, empty_sequence_int{}))>::value, "");
 
 static_assert(!is_sequence_t<int>::value, "");
 static_assert(!is_sequence_t<std::less<int>>::value, "");
