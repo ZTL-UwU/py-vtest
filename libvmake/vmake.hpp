@@ -19,8 +19,26 @@ struct sequence_terminated_error : std::exception {
 	}
 };
 
-namespace polyfill {
+namespace details {
 
+template<typename T>
+auto is_sequence_helper(char)
+	-> decltype(
+	std::declval<T>()()
+	, std::declval<T>().is_terminated()
+	, typename std::enable_if<std::is_same<decltype(std::declval<T>()())
+		, typename T::result>::value, int>::type()
+	, std::true_type{});
+
+template<typename T>
+auto is_sequence_helper(int) -> std::false_type;
+
+}
+
+template<typename T>
+using is_sequence_t = decltype(details::is_sequence_helper<T>(' '));
+
+namespace polyfill {
 
 #if __cplusplus >= 201703L
 
@@ -46,7 +64,7 @@ struct iota_sequence {
 	using result = T;
 
 	T start;
-	iota_sequence(const T& start) : start(start) {}
+	iota_sequence(T&& start) : start(std::forward<T>(start)) {}
 
 	bool is_terminated() const noexcept {
 		return false;
@@ -62,10 +80,11 @@ struct ranged_sequence {
 	using result = T;
 
 	T start, end;
-	ranged_sequence(const T& start, const T& end) : start(start), end(end) {}
+	ranged_sequence(T&& start, T&& end)
+		: start(std::forward<T>(start)), end(std::forward<T>(end)) {}
 
 	bool is_terminated() const noexcept {
-		return start == end;
+		return !(start < end);
 	}
 
 	auto operator()() {
@@ -79,10 +98,12 @@ struct ranged_step_sequence {
 	using result = T;
 
 	T start, end, step;
-	ranged_step_sequence(const T& start, const T& end, const T& step) : start(start), end(end), step(step) {}
+	ranged_step_sequence(T&& start, T&& end, T&& step)
+		: start(std::forward<T>(start)), end(std::forward<T>(end))
+		, step(std::forward<T>(step)) {}
 
 	bool is_terminated() const noexcept {
-		return start == end;
+		return !(start < end);
 	}
 
 	auto operator()() {
@@ -655,6 +676,19 @@ inline auto outputln_n(std::basic_ostream<CharT, Traits>& out, size_t n, Gen &&g
 template<typename CharT, typename Traits, typename Endl = decltype(std::endl<CharT, Traits>)>
 inline void outputln(std::basic_ostream<CharT, Traits>& out, const Endl &endl = std::endl<CharT, Traits>) {
 	out << endl;
+}
+
+namespace tests {
+
+using empty_sequence_int = decltype(nothing<int>());
+
+static_assert(is_sequence_t<empty_sequence_int>::value, "");
+static_assert(is_sequence_t<decltype(take(empty_sequence_int{}, 1))>::value, "");
+static_assert(is_sequence_t<decltype(group<20>(empty_sequence_int{}))>::value, "");
+
+static_assert(!is_sequence_t<int>::value, "");
+static_assert(!is_sequence_t<std::less<int>>::value, "");
+
 }
 
 }
