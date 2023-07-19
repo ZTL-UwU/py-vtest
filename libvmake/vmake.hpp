@@ -9,6 +9,8 @@
 
 namespace vmake {
 
+struct require_unique_t {} require_unique;
+
 struct sequence_terminated_error : std::exception {
 	virtual const char *what() const noexcept override final {
 		return "iterating on a terminated sequence.";
@@ -27,11 +29,10 @@ inline constexpr auto as_const_reference(typename as_const_reference_t<T>::type 
 	return x;
 }
 
-template<typename T>
 #if __cplusplus >= 201703L
-using optional = std::optional<T>;
+using std::optional;
 #else
-using optional = nonstd::optional<T>;
+using nonstd::optional;
 #endif
 
 } // namespace polyfill
@@ -138,16 +139,22 @@ struct ranged_iterator_extractor {
 	using result = typename std::remove_reference<decltype(*std::declval<ContIt>())>::type;
 
 	ContIt cur, end;
+	bool added;
 
-	ranged_iterator_extractor(const ContIt &begin, const ContIt &end) : cur(begin), end(end) {}
+	ranged_iterator_extractor(const ContIt &begin, const ContIt &end) : cur(begin)
+		, end(end), added(false) {}
 
 	bool is_terminated() const noexcept {
 		return cur == end;
 	}
 
 	auto operator()() {
+		// WARN: use for strange iterators such as std::istream_iterator
+		// do NOT try to optimize this into *it++
 		if (cur == end) throw sequence_terminated_error();
-		return *cur++;
+		if (added) return *++cur;
+		added = true;
+		return *cur;
 	}
 };
 
@@ -198,15 +205,13 @@ struct generator {
 
 	Func g;
 
-	generator(Func &&g) : g(g) {}
+	generator(Func &&g) : g(std::forward<Func>(g)) {}
 	generator(const Func &g) : g(g) {}
 
-	generator<Func>& operator=(generator<Func> &&y) = default;
-	generator<Func>& operator=(const generator<Func> &y) = default;
 	generator(generator<Func> &&y) = default;
 	generator(const generator<Func> &y) = default;
 
-	bool is_terminated() const noexcept {
+	constexpr bool is_terminated() const noexcept {
 		return false;
 	}
 
@@ -403,11 +408,13 @@ inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type>
 
 namespace details {
 
+template<typename ...Ts>
+using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
+
 template<typename Tp, int n>
 struct repeat_tuple {
 	static_assert(n > 0, "");
-	using type = decltype(std::tuple_cat(std::declval<std::tuple<Tp>>()
-		, std::declval<typename repeat_tuple<Tp, n - 1>::type>()));
+	using type = tuple_cat_t<std::tuple<Tp>, typename repeat_tuple<Tp, n - 1>::type>;
 };
 
 template<typename Tp>
@@ -516,8 +523,6 @@ inline auto uniform_ints(Tval &&l, Tval &&r) {
 		return dis(rng);
 	});
 }
-
-struct require_unique_t {} require_unique;
 
 namespace details {
 
