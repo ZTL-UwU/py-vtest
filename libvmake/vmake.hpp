@@ -31,8 +31,11 @@ using std::apply;
 
 using nonstd::optional;
 
-template<typename T> struct add_const_t { using type = const T; };
-template<typename T> constexpr typename add_const_t<T>::type& as_const(T& t) noexcept { return t; }
+template<typename T>
+constexpr typename std::add_const<T>::type& as_const(T& t) noexcept {
+	return t;
+}
+
 template<typename T> void as_const(const T&&) = delete;
 
 namespace details {
@@ -42,7 +45,7 @@ decltype(auto) apply_helper(Func &&f, Tuple &&t, std::index_sequence<index...>) 
 	return f(std::get<index>(std::forward<Tuple>(t))...);
 }
 
-}
+} // namespace details
 
 template<typename Func, typename Tuple>
 decltype(auto) apply(Func &&f, Tuple &&t) {
@@ -61,7 +64,7 @@ template<typename T>
 auto is_sequence_helper(char) -> decltype(
 	std::declval<T>()()
 	, typename std::enable_if<std::is_same<decltype(
-		std::declval<typename polyfill::add_const_t<T>::type>().is_terminated())
+		std::declval<typename std::add_const<T>::type>().is_terminated())
 		, bool>::value, int>::type{0}
 	, typename std::enable_if<std::is_same<decltype(std::declval<T>()())
 		, typename T::result>::value, int>::type{0}
@@ -331,7 +334,7 @@ inline auto repeat(Tval &&x) {
 }
 
 template<typename Tval>
-inline auto repeat_n(Tval &&x, size_t n) {
+inline decltype(auto) repeat_n(Tval &&x, size_t n) {
 	return take(repeat(std::forward<Tval>(x)), n);
 }
 
@@ -482,11 +485,11 @@ namespace details {
 //template<typename ...Ts>
 //using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
 
-template<typename Tp, int n, size_t ...index>
+template<typename Tp, size_t n, size_t ...index>
 auto repeat_tuple_builder(std::index_sequence<index...> seq)
 	-> std::tuple<typename std::enable_if<(void(index), true), Tp>::type...>;
 
-template<typename Tp, int n>
+template<typename Tp, size_t n>
 struct repeat_tuple_t {
 	using type = decltype(repeat_tuple_builder<Tp, n>(std::make_index_sequence<n>()));
 };
@@ -496,10 +499,10 @@ inline auto group_builder(Gen &g, std::index_sequence<index...> seq) {
 	auto val = std::array<typename Gen::result, seq.size()>{
 		(void(index), g())...
 	};
-	return std::make_tuple(std::move(val[index])...);
+	return std::make_tuple(std::move(std::get<index>(val))...);
 }
 
-template<typename Gen, int n>
+template<typename Gen, size_t n>
 struct grouper {
 	static_assert(n > 0, "");
 	using result = typename repeat_tuple_t<typename Gen::result, n>::type;
@@ -522,9 +525,15 @@ struct grouper {
 
 }
 
-template<int n, typename Gen>
+template<size_t n, typename Gen>
 inline auto group(Gen &&g) {
 	return details::grouper<typename std::decay<Gen>::type, n>(std::forward<Gen>(g));
+}
+
+template<typename Gen>
+inline decltype(auto) discard_n(Gen &&g, size_t n) {
+	for (size_t i = 0; i < n; ++i) g();
+	return std::forward<Gen>(g);
 }
 
 namespace rng {
@@ -599,7 +608,7 @@ struct unique_ints_sequence {
 	std::uniform_int_distribution<Tval> dis;
 	bool halfed;
 	std::unordered_set<Tval> used;
-	std::vector<int> rest;
+	std::vector<Tval> rest;
 
 	unique_ints_sequence(Engine &&e, Tval &&l, Tval &&r) : l(std::forward<Tval>(l))
 		, r(std::forward<Tval>(r)), rng(std::forward<Engine>(e))
