@@ -737,21 +737,20 @@ inline void outputln(std::basic_ostream<CharT, Traits>& out
 	out << endl;
 }
 
-namespace tests {
+namespace _checks {
 
 using empty_sequence_int = decltype(nothing<int>());
 
-static_assert(is_sequence_t<empty_sequence_int>::value, "");
-static_assert(is_sequence_t<decltype(take(empty_sequence_int{}, 1))>::value, "");
-static_assert(is_sequence_t<decltype(group<20>(empty_sequence_int{}))>::value, "");
-static_assert(is_sequence_t<decltype(concat(empty_sequence_int{}
-	, empty_sequence_int{}))>::value, "");
+static_assert(is_sequence_t<empty_sequence_int>::value
+	&& is_sequence_t<decltype(take(empty_sequence_int{}, 1))>::value
+	&& is_sequence_t<decltype(group<20>(empty_sequence_int{}))>::value
+	&& is_sequence_t<decltype(concat(empty_sequence_int{}, empty_sequence_int{}))>::value
+	&& !is_sequence_t<int>::value
+	&& !is_sequence_t<std::less<int>>::value
+	, "compile-time self-checking failed(try upgrading your compiler).");
 
-static_assert(!is_sequence_t<int>::value, "");
-static_assert(!is_sequence_t<std::less<int>>::value, "");
+} // namespace _checks
 
-}
-
-}
+} // namespace vmake
 
 #endif
