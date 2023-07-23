@@ -511,7 +511,7 @@ struct grouper {
 	grouper(const grouper<Gen, n>& g) = default;
 	grouper(Gen &&g) : g(std::forward<Gen>(g)) {}
 
-	bool is_terminated() noexcept {
+	bool is_terminated() const noexcept {
 		return g.is_terminated();
 	}
 
@@ -743,7 +743,6 @@ namespace _checks {
 
 using empty_sequence_int = decltype(nothing<int>());
 
-/*
 static_assert(is_sequence_t<empty_sequence_int>::value
 	&& is_sequence_t<decltype(take(empty_sequence_int{}, 1))>::value
 	&& is_sequence_t<decltype(group<20>(empty_sequence_int{}))>::value
@@ -751,7 +750,7 @@ static_assert(is_sequence_t<empty_sequence_int>::value
 	&& !is_sequence_t<int>::value
 	&& !is_sequence_t<std::less<int>>::value
 	, "compile-time self-checking failed(try upgrading your compiler).");
-*/
+
 } // namespace _checks
 
 } // namespace vmake
