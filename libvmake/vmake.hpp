@@ -523,7 +523,7 @@ struct grouper {
 	}
 };
 
-}
+} // namespace details
 
 template<size_t n, typename Gen>
 inline auto group(Gen &&g) {
@@ -534,6 +534,64 @@ template<typename Gen>
 inline decltype(auto) discard_n(Gen &&g, size_t n) {
 	for (size_t i = 0; i < n; ++i) g();
 	return std::forward<Gen>(g);
+}
+
+namespace details {
+
+template<typename Gen, size_t ...index>
+auto zipper_call_helper(Gen &&g, std::index_sequence<index...>) {
+	return std::make_tuple(std::get<index>(g)()...);
+}
+
+inline constexpr bool zip_terminate_helper() noexcept {
+	return false;
+}
+
+template<typename Seq, typename ...Seqs>
+inline bool zip_terminate_helper(Seq& f, Seqs& ...rest) noexcept {
+	if (f.is_terminated()) return true;
+	return zip_terminate_helper(rest...);
+}
+
+template<typename Tuple, size_t ...index>
+inline auto zip_terminate_applier(Tuple &t, std::index_sequence<index...>) noexcept {
+	return polyfill::apply(zip_terminate_helper<
+		typename std::tuple_element<index, Tuple>::type...>, t);
+}
+
+
+template<typename Gen>
+struct zipper {
+private:
+	static constexpr auto _n = std::tuple_size<Gen>::value;
+	using _make_index = std::make_index_sequence<_n>;
+
+public:
+	using result = decltype(zipper_call_helper(std::declval<Gen>(), _make_index()));
+	using core = Gen;
+
+	Gen g;
+
+	zipper(zipper<Gen> &&) = default;
+	zipper(const zipper<Gen> &) = default;
+
+	zipper(Gen &&g) : g(std::forward<Gen>(g)) {}
+
+	bool is_terminated() const noexcept {
+		return zip_terminate_applier(g, _make_index());
+	}
+
+	decltype(auto) operator()() {
+		return zipper_call_helper(g, _make_index());
+	}
+};
+
+} // namespace detail
+
+template<typename ...Gen>
+inline decltype(auto) zip(Gen&&... g) {
+	using Tuple = std::tuple<typename std::decay<Gen>::type...>;
+	return details::zipper<Tuple>(std::make_tuple(std::forward<Gen>(g)...));
 }
 
 namespace rng {
