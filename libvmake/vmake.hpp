@@ -22,8 +22,7 @@ struct sequence_terminated_error : std::exception {
 namespace details {
 
 template<typename T>
-auto is_sequence_helper(char)
-	-> decltype(
+auto is_sequence_helper(char) -> decltype(
 	std::declval<T>()()
 	, std::declval<T>().is_terminated()
 	, typename std::enable_if<std::is_same<decltype(std::declval<T>()())
@@ -44,6 +43,7 @@ namespace polyfill {
 
 using std::optional;
 using std::as_const;
+using std::apply;
 
 #else
 
@@ -52,6 +52,22 @@ using nonstd::optional;
 template<typename T> struct add_const_t { using type = const T; };
 template<typename T> constexpr typename add_const_t<T>::type& as_const(T& t) noexcept { return t; }
 template<typename T> void as_const(const T&&) = delete;
+
+namespace details {
+
+template<typename Func, typename Tuple, size_t ...index>
+decltype(auto) apply_helper(Func &&f, Tuple &&t, std::index_sequence<index...>) {
+	return f(std::get<index>(std::forward<Tuple>(t))...);
+}
+
+}
+
+template<typename Func, typename Tuple>
+decltype(auto) apply(Func &&f, Tuple &&t) {
+	return details::apply_helper(std::forward<Func>(f), std::forward<Tuple>(t)
+		, std::make_index_sequence<std::tuple_size<
+		typename std::decay<Tuple>::type>::value>());
+}
 
 #endif
 
@@ -70,7 +86,7 @@ struct iota_sequence {
 		return false;
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		return start++;
 	}
 };
@@ -87,7 +103,7 @@ struct ranged_sequence {
 		return !(start < end);
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		if (start == end) throw sequence_terminated_error();
 		return start++;
 	}
@@ -106,7 +122,7 @@ struct ranged_step_sequence {
 		return !(start < end);
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		if (start == end) throw sequence_terminated_error();
 		T res = start;
 		start += step;
@@ -129,8 +145,8 @@ inline auto range(Val &&start, Val &&end) {
 
 template<typename Val>
 inline auto range(Val &&start, Val &&end, Val &&step) {
-	return details::ranged_step_sequence<typename std::decay<Val>::type>(std::forward<Val>(start)
-		, std::forward<Val>(end), std::forward<Val>(step));
+	return details::ranged_step_sequence<typename std::decay<Val>::type>(
+		std::forward<Val>(start), std::forward<Val>(end), std::forward<Val>(step));
 }
 
 namespace details {
@@ -171,7 +187,7 @@ struct ranged_iterator_extractor {
 		return cur == end;
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		// WARN: use for strange iterators such as std::istream_iterator
 		// do NOT try to optimize this into *it++
 		if (cur == end) throw sequence_terminated_error();
@@ -194,7 +210,7 @@ struct iterator_extractor {
 		return false;
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		// WARN: use for strange iterators such as std::istream_iterator
 		// do NOT try to optimize this into *it++
 		if (added) return *++it;
@@ -238,7 +254,7 @@ struct generator {
 		return false;
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		return g();
 	}
 };
@@ -272,7 +288,7 @@ struct limitor {
 		return lim <= 0 || g.is_terminated();
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		if (lim-- > 0) return g();
 		else throw sequence_terminated_error();
 	}
@@ -319,24 +335,37 @@ inline auto repeat_n(Tval &&x, size_t n) {
 
 namespace details {
 
-template<typename T, size_t ...index>
-inline bool concat_terminate_helper(T &g, std::index_sequence<index...> seq) {
-	bool res = true;
-	void(std::array<int, seq.size()>{
-		(!res || std::get<index>(g).is_terminated() || (res = false))...
-	});
-	return res;
+inline constexpr bool concat_terminate_helper() noexcept {
+	return true;
 }
 
-template<typename Res, typename T, size_t ...index>
-inline Res concat_call_helper(T &g, std::index_sequence<index...> seq) {
-	polyfill::optional<Res> x;
-	void(std::array<int, seq.size()>{
-		(x.has_value() || std::get<index>(g).is_terminated()
-		|| (x.emplace(std::move(std::get<index>(g)()))))...
-	});
-	if (!x.has_value()) throw sequence_terminated_error();
-	return *x;
+template<typename Seq, typename ...Seqs>
+inline bool concat_terminate_helper(Seq& f, Seqs& ...rest) noexcept {
+	if (!f.is_terminated()) return false;
+	return concat_terminate_helper(rest...);
+}
+
+template<typename Tuple, size_t ...index>
+inline auto concat_terminate_applier(Tuple &t, std::index_sequence<index...>) noexcept {
+	return polyfill::apply(concat_terminate_helper<
+		typename std::tuple_element<index, Tuple>::type...>, t);
+}
+
+template<typename Seq, typename ...Seqs>
+inline decltype(auto) concat_call_helper(Seq& f, Seqs& ...rest) {
+	if (f.is_terminated()) return concat_call_helper(rest...);
+	return f();
+}
+
+template<typename Seq>
+inline decltype(auto) concat_call_helper(Seq &f) {
+	return f();
+}
+
+template<typename Tuple, size_t ...index>
+inline decltype(auto) concat_call_applier(Tuple &t, std::index_sequence<index...>) {
+	return polyfill::apply(concat_call_helper<
+		typename std::tuple_element<index, Tuple>::type...>, t);
 }
 
 template<typename Gen1, typename ...Gen>
@@ -351,11 +380,11 @@ struct concator {
 	concator(const concator<Gen1, Gen...>&) = default;
 
 	bool is_terminated() const noexcept {
-		return concat_terminate_helper(g, std::make_index_sequence<sizeof...(Gen) + 1>());
+		return concat_terminate_applier(g, std::make_index_sequence<sizeof...(Gen) + 1>());
 	}
 
-	auto operator()() {
-		return concat_call_helper<result>(g, std::make_index_sequence<sizeof...(Gen) + 1>());
+	decltype(auto) operator()() {
+		return concat_call_applier(g, std::make_index_sequence<sizeof...(Gen) + 1>());
 	}
 };
 
@@ -384,7 +413,7 @@ struct transformer {
 		return g.is_terminated();
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		return f(g());
 	}
 };
@@ -394,7 +423,8 @@ struct transformer {
 template<typename Gen, typename Func>
 inline auto transform(Gen &&g, Func &&f) {
 	return details::transformer<typename std::decay<Gen>::type
-				  , typename std::decay<Func>::type>(std::forward<Gen>(g), std::forward<Func>(f));
+				  , typename std::decay<Func>::type>(std::forward<Gen>(g)
+				  , std::forward<Func>(f));
 }
 
 template<typename Gen, typename Pred>
@@ -409,7 +439,7 @@ struct filteror {
 	Pred p;
 	mutable polyfill::optional<result> preview;
 
-	filteror(Gen &&g, Pred &&p) : g(std::forward<Gen>(g)), p(std::forward<Pred>(p)), preview() {
+	filteror(Gen &&g, Pred &&p) : g(std::forward<Gen>(g)), p(std::forward<Pred>(p)) {
 		_find_next();
 	};
 
@@ -419,7 +449,7 @@ struct filteror {
 		return !preview.has_value();
 	}
 
-	auto operator()() {
+	decltype(auto) operator()() {
 		if (is_terminated()) throw sequence_terminated_error();
 		result res = std::move(*preview);
 		preview.reset();
@@ -440,7 +470,8 @@ private:
 };
 
 template<typename Gen, typename Pred>
-inline filteror<typename std::decay<Gen>::type, typename std::decay<Pred>::type> filter(Gen &&g, Pred &&p) {
+inline filteror<typename std::decay<Gen>::type
+	, typename std::decay<Pred>::type> filter(Gen &&g, Pred &&p) {
 	return {std::forward<Gen>(g), std::forward<Pred>(p)};
 }
 
@@ -564,19 +595,20 @@ struct unique_ints_sequence {
 	Tval l, r;
 	Engine rng;
 	std::uniform_int_distribution<Tval> dis;
+	bool halfed;
 	std::unordered_set<Tval> used;
 	std::vector<int> rest;
-	bool halfed;
 
-	unique_ints_sequence(Engine &&e, Tval &&l, Tval &&r) : l(l), r(r), rng(std::forward<Engine>(e))
-		, dis(std::forward<Tval>(l), std::forward<Tval>(r)), used(), rest(), halfed(false) {}
+	unique_ints_sequence(Engine &&e, Tval &&l, Tval &&r) : l(std::forward<Tval>(l))
+		, r(std::forward<Tval>(r)), rng(std::forward<Engine>(e))
+		, dis(std::forward<Tval>(l), std::forward<Tval>(r)), halfed(false) {}
 
 	bool is_terminated() const noexcept {
 		return halfed && rest.empty();
 	}
 
 	auto operator()() {
-		if (!halfed && (used.size() + 1) * 2 >= static_cast<_unsigned_Tval>(r - l + 1)) {
+		if (!halfed && Tval{(used.size() + 1) * 2} >= r - l + 1) {
 			for (Tval i = l; i <= r; ++i) {
 				if (!used.count(i)) rest.push_back(i);
 			}
@@ -598,18 +630,14 @@ struct unique_ints_sequence {
 			return res;
 		}
 	}
-
-private:
-	using _unsigned_Tval = typename std::conditional<std::is_integral<Tval>::value
-		, typename std::make_unsigned<Tval>::type, Tval>::type;
 };
 
 };
 
 template<typename Tval = int, typename Engine = std::default_random_engine>
 inline auto uniform_ints(require_unique_t _, Tval &&l, Tval &&r) {
-	return details::unique_ints_sequence<typename std::decay<Tval>::type, Engine>(Engine(make_seed())
-		, std::forward<Tval>(l), std::forward<Tval>(r));
+	return details::unique_ints_sequence<typename std::decay<Tval>::type, Engine>(
+		Engine(make_seed()), std::forward<Tval>(l), std::forward<Tval>(r));
 }
 
 template<typename Tval = double, typename Engine = std::default_random_engine>
@@ -641,55 +669,71 @@ inline OutputIt copy_n(OutputIt it, size_t n, Gen&& g) {
 
 template<typename CharT, typename Traits, typename Gen>
 inline auto output(std::basic_ostream<CharT, Traits>& out, const char *delim, Gen &&g) {
-	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), std::move(g));
+	return copy(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out, delim), std::move(g));
 }
 
 template<typename CharT, typename Traits, typename Gen>
 inline auto output(std::basic_ostream<CharT, Traits>& out, Gen &&g) {
-	return copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), std::move(g));
+	return copy(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out), std::move(g));
 }
 
 template<typename CharT, typename Traits, typename Gen>
 inline auto output_n(std::basic_ostream<CharT, Traits>& out, size_t n, const char *delim, Gen &&g) {
-	return copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), n, std::move(g));
+	return copy_n(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out, delim), n, std::move(g));
 }
 
 template<typename CharT, typename Traits, typename Gen>
 inline auto output_n(std::basic_ostream<CharT, Traits>& out, size_t n, Gen &&g) {
-	return copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), n, std::move(g));
+	return copy_n(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out), n, std::move(g));
 }
 
-template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
-inline auto outputln(std::basic_ostream<CharT, Traits>& out, const char *delim, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
-	auto res = copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), std::move(g));
+template<typename CharT, typename Traits, typename Gen
+	, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln(std::basic_ostream<CharT, Traits>& out, const char *delim
+	, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out, delim), std::forward<Gen>(g));
 	out << endl;
 	return res;
 }
 
-template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
-inline auto outputln(std::basic_ostream<CharT, Traits>& out, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
-	auto res = copy(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), std::move(g));
+template<typename CharT, typename Traits, typename Gen
+	, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln(std::basic_ostream<CharT, Traits>& out
+	, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out), std::forward<Gen>(g));
 	out << endl;
 	return res;
 }
 
-template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
+template<typename CharT, typename Traits, typename Gen
+	, typename Endl = decltype(std::endl<CharT, Traits>)>
 inline auto outputln_n(std::basic_ostream<CharT, Traits>& out, size_t n
 	, const char *delim, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
-	auto res = copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out, delim), n, std::move(g));
+	auto res = copy_n(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out, delim), n, std::forward<Gen>(g));
 	out << endl;
 	return res;
 }
 
-template<typename CharT, typename Traits, typename Gen, typename Endl = decltype(std::endl<CharT, Traits>)>
-inline auto outputln_n(std::basic_ostream<CharT, Traits>& out, size_t n, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
-	auto res = copy_n(std::ostream_iterator<typename std::decay<Gen>::type::result>(out), n, std::move(g));
+template<typename CharT, typename Traits, typename Gen
+	, typename Endl = decltype(std::endl<CharT, Traits>)>
+inline auto outputln_n(std::basic_ostream<CharT, Traits>& out, size_t n
+	, Gen &&g, const Endl &endl = std::endl<CharT, Traits>) {
+	auto res = copy_n(std::ostream_iterator<
+		typename std::decay<Gen>::type::result>(out), n, std::forward<Gen>(g));
 	out << endl;
 	return res;
 }
 
 template<typename CharT, typename Traits, typename Endl = decltype(std::endl<CharT, Traits>)>
-inline void outputln(std::basic_ostream<CharT, Traits>& out, const Endl &endl = std::endl<CharT, Traits>) {
+inline void outputln(std::basic_ostream<CharT, Traits>& out
+	, const Endl &endl = std::endl<CharT, Traits>) {
 	out << endl;
 }
 
